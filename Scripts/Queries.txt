@@ -1,0 +1,84 @@
+-- Query 1)
+-- Find the salesperson who sold the most cars
+-- Morale these days in the Honda (Japan) showroomhas been quite low. To address this situation, the manager of the showroom has decided to reward the salesperson with the best performance. 
+
+select salesperson_id
+from salesperson
+where salesperson_id in (
+    select salesperson_id
+    from vehicle_sold
+    group by salesperson_id having count(*) = (
+        select max(count(salesperson_id))
+        from vehicle_sold
+        group by salesperson_id
+    )
+)
+
+-- Query 2)
+-- Get commission value of salesperson ‘3001’ in year 2020
+-- The year 2021 is almost over. Moving forward, Honda (Japan) needs to do a financial report on all of its expenses. One of its expenses that Honda (Japan) is currently trying to find out is how much money has been spent on employees that are still currently working in Honda (Japan). This means that a report must be generated containing the salesperson’s id, their first and last name, and their total salary which can be calculated by finding out their total commission amount and adding it with their monthly salary multiplied by 12.
+
+select salesperson.salesperson_id, people_info.first_name, people_info.last_name, sum((agreed_price*commission_rate)+base_salary*12) as "Total Salary"
+from vehicle_sold, salesperson, people_info
+where vehicle_sold.salesperson_id = salesperson.salesperson_id
+and salesperson.info_id = people_info.info_id
+and vehicle_sold.vehicle_sold_date>= '01-01-2021' and vehicle_sold.vehicle_sold_date<'01-01-2022'
+and resign_date is not null
+group by salesperson.salesperson_id,people_info.first_name, people_info.last_name
+order by sum((agreed_price*commission_rate)+base_salary*12) asc
+
+
+-- Query 3)
+-- Find which Civic model manufactured in 2020 is not part of the vehicle for sale
+-- In the year 2020, Honda (Japan) took a serious hit in terms of its economy. This resulted in a few crucial manufacturing plants being closed which decreased the amount of cars that Honda (Japan) could produce. To accommodate, Honda (Japan) decided to discontinue some models in the Civic series that were created in 2016. To decide which model to remove, Honda (Japan) decided to take a look at the database and find out which models were not included in the vehicle_for_sale table.
+
+select *
+from vehicle_model
+left join vehicle_for_sale
+on vehicle_model.model_code = vehicle_for_sale.model_code
+where model_name like '%Civic%'
+and manufactured_year = 2016
+and VIN is null
+
+
+-- Query 4)
+-- Due to the sudden increase in maintenance during the month of September 2020, Honda requires a report on the customer that repaired all parts in the same month of the year to give out a prize. Hence, Honda will need to see the customer and their details to contact them and inform them about the prize. The report will consist of the following: Customer Id, Customer Name, Contact, VIN, Model Name, Purchase Id, Total Cost
+
+SELECT Customer_Id, Customer_Name, Contact, VIN, Model_Name, Purchase_Id, Total_Cost
+FROM 
+(select distinct customer.cust_id AS Customer_Id,
+concat(first_name, concat(' ',last_name)) AS Customer_Name,
+contact_number AS Contact,
+vehicle_sold.vin AS VIN,
+model_name AS Model_Name,
+oil.vehicle_sold_id AS Purchase_Id
+
+from maintenance oil,
+maintenance engine, 
+maintenance air_cond, 
+maintenance brake,
+people_info, customer, 
+vehicle_sold, vehicle_model,
+vehicle_for_sale
+
+where to_char(oil.maintenance_date , 'YYYY') = 2020
+and to_char(engine.maintenance_date, 'YYYY') = 2020 
+and to_char(air_cond.maintenance_date, 'YYYY') = 2020 
+and to_char(brake.maintenance_date, 'YYYY') = 2020
+and extract(month from oil.maintenance_date) = 9
+and extract(month from engine.maintenance_date) = 9
+and extract(month from air_cond.maintenance_date) = 9
+and extract(month from brake.maintenance_date) = 9
+and vehicle_sold.vehicle_sold_id in(oil.vehicle_sold_id, engine.vehicle_sold_id, air_cond.vehicle_sold_id)
+and vehicle_sold.cust_id = customer.cust_id
+and people_info.info_id = customer.info_id
+and vehicle_model.model_code = vehicle_for_sale.model_code
+and vehicle_sold.vin = vehicle_for_sale.vin) t1 
+
+left join
+
+(select cust_id, sum(maintenance_cost) AS Total_Cost
+from maintenance, customer
+where to_char(maintenance_date, 'YYYY') = 2020
+and extract(month from maintenance_date) = 9
+group by cust_id) t2 on t1.Customer_Id = t2.cust_id;
